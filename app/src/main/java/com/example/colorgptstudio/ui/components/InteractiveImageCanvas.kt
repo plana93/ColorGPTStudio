@@ -8,7 +8,6 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
@@ -151,29 +150,22 @@ fun InteractiveImageCanvas(
                     translationY = pan.y
                 )
                 .pointerInput(Unit) {
-                    // ── TAP: usa detectTapGestures che filtra correttamente tap vs drag ──
-                    detectTapGestures { offset ->
-                        val (xR, yR) = offsetToRatio(offset)
-                        onTap(xR, yR)
-                    }
-                }
-                .pointerInput(Unit) {
-                    // ── DRAG (lente) + PINCH (zoom) ────────────────────────────────────
+                    // Gestisce tap, drag (lente) e pinch (zoom) in un unico awaitEachGesture
                     awaitEachGesture {
-                        awaitFirstDown(requireUnconsumed = false)
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val startPos = down.position
                         var dragAccum = Offset.Zero
                         var hasMoved = false
 
                         do {
                             val event = awaitPointerEvent(PointerEventPass.Main)
                             val pointers = event.changes.filter { it.pressed }
-                            val pointerCount = pointers.size
 
-                            if (pointerCount == 1) {
+                            if (pointers.size == 1) {
                                 val change = pointers[0]
                                 val delta = change.positionChange()
                                 dragAccum += delta
-                                if (!hasMoved && abs(dragAccum.x) + abs(dragAccum.y) > 12f) {
+                                if (!hasMoved && abs(dragAccum.x) + abs(dragAccum.y) > 10f) {
                                     hasMoved = true
                                 }
                                 if (hasMoved) {
@@ -183,17 +175,20 @@ fun InteractiveImageCanvas(
                                     magnifierColor = extractColorAt(xR, yR)
                                     change.consume()
                                 }
-                            } else if (pointerCount >= 2) {
+                            } else if (pointers.size >= 2) {
                                 isDragging = false
                                 hasMoved = true
-                                val zoomFactor = event.calculateZoom()
-                                val panDelta = event.calculatePan()
-                                scale = (scale * zoomFactor).coerceIn(0.5f, 8f)
-                                pan += panDelta
+                                scale = (scale * event.calculateZoom()).coerceIn(0.5f, 8f)
+                                pan += event.calculatePan()
                                 pointers.forEach { it.consume() }
                             }
                         } while (pointers.any { it.pressed })
 
+                        if (!hasMoved) {
+                            // Tap puro — nessun movimento rilevante
+                            val (xR, yR) = offsetToRatio(startPos)
+                            onTap(xR, yR)
+                        }
                         isDragging = false
                         magnifierColor = null
                     }

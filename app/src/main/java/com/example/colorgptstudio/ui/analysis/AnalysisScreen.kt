@@ -99,18 +99,22 @@ fun AnalysisScreen(
                 .padding(padding)
         ) {
             // ─── Canvas interattivo (60% schermo) — lente al drag, pinch-to-zoom ─
-            val imageFile = java.io.File(uiState.imageLocalPath)
+            val imageLocalPath = uiState.imageLocalPath
+            val imageFile = if (imageLocalPath.isNotBlank()) java.io.File(imageLocalPath) else null
             InteractiveImageCanvas(
-                imageSource = if (uiState.imageLocalPath.isNotBlank()) imageFile else null,
+                imageSource = imageFile,
                 colorPoints = uiState.colorPoints,
                 selectedPointId = uiState.selectedPoint?.id,
                 onTap = { xRatio, yRatio ->
-                    val colorData = extractColorAtRatioFromFile(
-                        file = imageFile,
-                        xRatio = xRatio,
-                        yRatio = yRatio
-                    )
-                    colorData?.let { viewModel.onColorPicked(xRatio, yRatio, it) }
+                    val currentPath = uiState.imageLocalPath
+                    if (currentPath.isNotBlank()) {
+                        val colorData = extractColorAtRatioFromFile(
+                            file = java.io.File(currentPath),
+                            xRatio = xRatio,
+                            yRatio = yRatio
+                        )
+                        colorData?.let { viewModel.onColorPicked(xRatio, yRatio, it) }
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
