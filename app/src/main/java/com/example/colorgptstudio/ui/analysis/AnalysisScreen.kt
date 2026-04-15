@@ -470,6 +470,9 @@ private fun LlmPromptSheet(
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    // Testo editabile — inizializzato col prompt generato, modificabile liberamente
+    var editablePrompt by remember { mutableStateOf(prompt) }
     var copied by remember { mutableStateOf(false) }
 
     LaunchedEffect(copied) {
@@ -505,43 +508,56 @@ private fun LlmPromptSheet(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Copy this prompt into any LLM",
+                        text = "Edit, then copy or share",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Icon(
-                    Icons.Outlined.AutoFixHigh,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(24.dp)
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Reset al prompt originale
+                    if (editablePrompt != prompt) {
+                        IconButton(
+                            onClick = { editablePrompt = prompt },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.Restore,
+                                contentDescription = "Reset",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    Icon(
+                        Icons.Outlined.AutoFixHigh,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
             }
 
             HorizontalDivider()
 
-            // ── Prompt text (scrollabile) ────────────────────────────────
-            Box(
+            // ── Prompt editabile ─────────────────────────────────────────
+            OutlinedTextField(
+                value = editablePrompt,
+                onValueChange = { editablePrompt = it },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(max = 320.dp)
-                    .background(
-                        MaterialTheme.colorScheme.surfaceVariant,
-                        RoundedCornerShape(12.dp)
-                    )
-            ) {
-                Text(
-                    text = prompt,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontFamily = FontFamily.Monospace,
-                        lineHeight = 18.sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier
-                        .verticalScroll(rememberScrollState())
-                        .padding(14.dp)
-                )
-            }
+                    .heightIn(min = 180.dp, max = 340.dp),
+                textStyle = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace,
+                    lineHeight = 18.sp
+                ),
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.surfaceVariant,
+                ),
+            )
 
             // ── Azioni ───────────────────────────────────────────────────
             Row(
@@ -551,7 +567,7 @@ private fun LlmPromptSheet(
                 // Copy to clipboard
                 Button(
                     onClick = {
-                        clipboardManager.setText(AnnotatedString(prompt))
+                        clipboardManager.setText(AnnotatedString(editablePrompt))
                         copied = true
                     },
                     modifier = Modifier.weight(1f),
@@ -568,7 +584,7 @@ private fun LlmPromptSheet(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(Modifier.width(6.dp))
-                    Text(if (copied) "Copied!" else "Copy prompt")
+                    Text(if (copied) "Copied!" else "Copy")
                 }
 
                 // Share / Open in another app
@@ -576,7 +592,7 @@ private fun LlmPromptSheet(
                     onClick = {
                         val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                             type = "text/plain"
-                            putExtra(android.content.Intent.EXTRA_TEXT, prompt)
+                            putExtra(android.content.Intent.EXTRA_TEXT, editablePrompt)
                         }
                         context.startActivity(
                             android.content.Intent.createChooser(intent, "Open in…")
