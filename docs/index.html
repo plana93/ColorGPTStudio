@@ -208,6 +208,68 @@
       font-size: 0.85rem; color: var(--muted); line-height: 1.55;
     }
 
+    /* ── TUTORIAL ── */
+    .tutorial-steps {
+      margin-top: 52px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .step {
+      display: grid;
+      grid-template-columns: 48px 1fr;
+      gap: 0 24px;
+      position: relative;
+    }
+    /* vertical connector line between steps */
+    .step:not(:last-child) .step-line::after {
+      content: '';
+      position: absolute;
+      left: 23px;
+      top: 48px;
+      bottom: -28px;
+      width: 2px;
+      background: var(--border);
+    }
+    .step-line {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 2px;
+    }
+    .step-num {
+      width: 48px; height: 48px;
+      border-radius: 50%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.8rem; font-weight: 800;
+      color: var(--accent);
+      flex-shrink: 0;
+      z-index: 1;
+    }
+    .step-body {
+      padding: 4px 0 40px;
+    }
+    .step-body h3 {
+      font-size: 1rem; font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .step-body p {
+      font-size: 0.85rem; color: var(--muted); line-height: 1.6; max-width: 540px;
+    }
+    .step-body .step-tag {
+      display: inline-block;
+      margin-top: 10px;
+      background: rgba(232,200,122,0.08);
+      border: 1px solid rgba(232,200,122,0.18);
+      color: var(--accent);
+      font-size: 0.7rem; font-weight: 600;
+      padding: 3px 10px; border-radius: 999px;
+      letter-spacing: 0.05em;
+    }
+
     /* ── STACK ── */
     .stack-grid {
       margin-top: 40px;
@@ -272,6 +334,7 @@
     </div>
     <div class="links" style="display:flex;gap:28px;align-items:center;">
       <a href="#features">Features</a>
+      <a href="#how-it-works">How it works</a>
       <a href="#stack">Stack</a>
       <a href="https://github.com/plana93/ColorGPTStudio" target="_blank">GitHub</a>
       <a href="https://github.com/plana93/ColorGPTStudio" target="_blank" class="cta">Get the code</a>
@@ -293,7 +356,7 @@
 
     <div class="hero-actions">
       <a href="https://github.com/plana93/ColorGPTStudio" target="_blank" class="btn-primary">View on GitHub</a>
-      <a href="#features" class="btn-ghost">See how it works ↓</a>
+      <a href="#how-it-works" class="btn-ghost">How it works ↓</a>
     </div>
   </section>
 
@@ -351,6 +414,97 @@
         <h3>Zero Internet</h3>
         <p>No network permission. No analytics. No backend. Your job data stays on your device.</p>
       </div>
+    </div>
+  </section>
+
+  <hr class="divider" />
+
+  <!-- HOW IT WORKS — TUTORIAL -->
+  <section class="section" id="how-it-works">
+    <div class="section-label">Tutorial</div>
+    <h2>From zero to palette<br/><em>in four taps.</em></h2>
+
+    <div class="tutorial-steps">
+
+      <div class="step">
+        <div class="step-line"><div class="step-num">01</div></div>
+        <div class="step-body">
+          <h3>Open a project — or go Quick</h3>
+          <p>
+            Tap <strong>+</strong> on the home screen to create a named project (useful for jobs you revisit),
+            or tap <strong>Quick Analysis</strong> for an instant on-site session with no overhead.
+          </p>
+          <span class="step-tag">Home screen</span>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-line"><div class="step-num">02</div></div>
+        <div class="step-body">
+          <h3>Load or shoot an image</h3>
+          <p>
+            Hit the <strong>camera icon</strong> to take a photo right now, or the <strong>gallery icon</strong>
+            to pick an existing one. The image loads instantly — no upload, no processing spinner.
+          </p>
+          <span class="step-tag">Project screen · Quick Analysis</span>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-line"><div class="step-num">03</div></div>
+        <div class="step-body">
+          <h3>Tap any pixel to extract its color</h3>
+          <p>
+            Touch directly on the area you want. A dot appears on the image marking the exact point.
+            You instantly see <strong>HEX · RGB · CMYK · HSL · RAL Classic · NCS</strong> — all computed
+            on-device, offline, in milliseconds.
+            <br/><br/>
+            Need to zoom in first? Pinch to zoom, drag to pan, then tap. The dot follows your finger precisely.
+          </p>
+          <span class="step-tag">Interactive canvas</span>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-line"><div class="step-num">04</div></div>
+        <div class="step-body">
+          <h3>Annotate the point</h3>
+          <p>
+            Tap any color dot to open its editor. Add a <strong>label</strong> ("ceiling"), a <strong>note</strong>
+            ("match existing trim"), a <strong>material code</strong>, and craft tags like
+            <em>paint · fabric · wood</em>. Everything is saved locally to the project.
+          </p>
+          <span class="step-tag">Color point editor</span>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-line"><div class="step-num">05</div></div>
+        <div class="step-body">
+          <h3>Extract the full palette — then Ask AI</h3>
+          <p>
+            Tap <strong>✦ Extract palette</strong> to run K-Means clustering on the entire image and
+            surface the dominant colors automatically. Then tap <strong>Ask AI</strong> to generate
+            a ready-to-paste prompt describing every color point with codes and context — copy it
+            straight into ChatGPT, Claude or any LLM.
+          </p>
+          <span class="step-tag">Palette · Ask AI</span>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-line"><div class="step-num">06</div></div>
+        <div class="step-body">
+          <h3>Share or export</h3>
+          <p>
+            Use the <strong>Share</strong> button to send the generated prompt to any app —
+            email, WhatsApp, Notion, your CRM. No export format to configure,
+            no account to log into. Done.
+          </p>
+          <span class="step-tag">Share sheet</span>
+        </div>
+      </div>
+
     </div>
   </section>
 
