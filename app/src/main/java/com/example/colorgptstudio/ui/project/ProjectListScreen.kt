@@ -3,7 +3,9 @@ package com.example.colorgptstudio.ui.project
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -11,6 +13,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.DriveFileRenameOutline
 import androidx.compose.material.icons.outlined.FolderOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,6 +39,8 @@ fun ProjectListScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     var showCreateDialog by remember { mutableStateOf(false) }
+    var projectToRename by remember { mutableStateOf<Project?>(null) }
+    var projectToDelete by remember { mutableStateOf<Project?>(null) }
 
     Scaffold(
         topBar = {
@@ -100,7 +106,8 @@ fun ProjectListScreen(
                             ) {
                                 ProjectCard(
                                     project = project,
-                                    onClick = { onProjectClick(project.id) }
+                                    onClick = { onProjectClick(project.id) },
+                                    onLongClick = { projectToRename = project }
                                 )
                             }
                         }
@@ -120,16 +127,63 @@ fun ProjectListScreen(
             onDismiss = { showCreateDialog = false }
         )
     }
+
+    // ─── Dialog rinomina ──────────────────────────────────────────────────────
+    projectToRename?.let { project ->
+        ProjectContextMenu(
+            project = project,
+            onRename = { newName ->
+                viewModel.renameProject(project.id, newName)
+                projectToRename = null
+            },
+            onDelete = {
+                projectToRename = null
+                projectToDelete = project
+            },
+            onDismiss = { projectToRename = null }
+        )
+    }
+
+    // ─── Dialog conferma eliminazione ─────────────────────────────────────────
+    projectToDelete?.let { project ->
+        AlertDialog(
+            onDismissRequest = { projectToDelete = null },
+            title = { Text("Elimina progetto") },
+            text = { Text("Eliminare \"${project.name}\"?\nTutti i dati e le immagini verranno rimossi definitivamente.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteProject(project.id)
+                        projectToDelete = null
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) { Text("Elimina") }
+            },
+            dismissButton = {
+                TextButton(onClick = { projectToDelete = null }) { Text("Annulla") }
+            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            shape = RoundedCornerShape(20.dp)
+        )
+    }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ProjectCard(
     project: Project,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
 ) {
     Card(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -213,6 +267,75 @@ private fun ProjectCard(
             }
         }
     }
+}
+
+@Composable
+private fun ProjectContextMenu(
+    project: Project,
+    onRename: (String) -> Unit,
+    onDelete: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var mode by remember { mutableStateOf("menu") } // "menu" | "rename"
+    var nameText by remember { mutableStateOf(project.name) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = if (mode == "rename") "Rinomina progetto" else project.name,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+            )
+        },
+        text = {
+            if (mode == "rename") {
+                OutlinedTextField(
+                    value = nameText,
+                    onValueChange = { nameText = it },
+                    label = { Text("Nuovo nome") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(
+                        onClick = { mode = "rename" },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Outlined.DriveFileRenameOutline, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Rinomina", style = MaterialTheme.typography.bodyMedium)
+                        Spacer(Modifier.weight(1f))
+                    }
+                    TextButton(
+                        onClick = onDelete,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Icon(Icons.Outlined.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Elimina", style = MaterialTheme.typography.bodyMedium)
+                        Spacer(Modifier.weight(1f))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (mode == "rename") {
+                Button(
+                    onClick = { if (nameText.isNotBlank()) onRename(nameText) },
+                    enabled = nameText.isNotBlank()
+                ) { Text("Rinomina") }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = if (mode == "rename") { { mode = "menu" } } else onDismiss) {
+                Text(if (mode == "rename") "Indietro" else "Chiudi")
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(20.dp)
+    )
 }
 
 @Composable

@@ -33,6 +33,12 @@ class ProjectListViewModel(
         }
     }
 
+    fun renameProject(projectId: Long, newName: String) {
+        viewModelScope.launch {
+            repository.renameProject(projectId, newName)
+        }
+    }
+
     fun deleteProject(projectId: Long) {
         viewModelScope.launch {
             repository.deleteProject(projectId)

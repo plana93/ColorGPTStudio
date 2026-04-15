@@ -21,15 +21,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.colorgptstudio.domain.model.ColorPoint
 import com.example.colorgptstudio.ui.components.ColorDetailSheet
+import com.example.colorgptstudio.ui.components.InteractiveImageCanvas
 import com.example.colorgptstudio.ui.components.PaletteCard
 import com.example.colorgptstudio.ui.components.TagInputField
 import com.example.colorgptstudio.ui.components.copyColorToClipboard
@@ -49,9 +48,15 @@ fun AnalysisScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-    var imageSize by remember { mutableStateOf(IntSize.Zero) }
     val bottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     var showPointEditor by remember { mutableStateOf(false) }
+
+    // Dati tag (condivisi tra la lista punti e il bottom sheet)
+    val availableTags by viewModel.tagRepository.allTags.collectAsState()
+    val presetCategories by viewModel.tagRepository.presetCategories.collectAsState()
+    val categoryTagsMap = remember(presetCategories) {
+        presetCategories.associate { it.name to it.tags }
+    }
 
     // Mostra il bottom sheet quando viene selezionato un punto
     LaunchedEffect(uiState.selectedPoint) {
@@ -88,100 +93,52 @@ fun AnalysisScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // ─── Canvas interattivo (occupa il 60% dello schermo) ─────────────
-            Box(
+            // ─── Canvas interattivo (60% schermo) — lente al drag, pinch-to-zoom ─
+            val imageFile = java.io.File(uiState.imageLocalPath)
+            InteractiveImageCanvas(
+                imageSource = if (imageFile.exists()) imageFile else null,
+                colorPoints = uiState.colorPoints,
+                selectedPointId = uiState.selectedPoint?.id,
+                onTap = { xRatio, yRatio ->
+                    val colorData = extractColorAtRatio(
+                        context = context,
+                        uri = Uri.fromFile(imageFile),
+                        xRatio = xRatio,
+                        yRatio = yRatio
+                    )
+                    colorData?.let { viewModel.onColorPicked(xRatio, yRatio, it) }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(0.6f)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                val imageFile = File(uiState.imageLocalPath)
-                if (imageFile.exists()) {
-                    AsyncImage(
-                        model = imageFile,
-                        contentDescription = "Immagine da analizzare",
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .onGloballyPositioned { imageSize = it.size }
-                            .pointerInput(Unit) {
-                                detectTapGestures { offset ->
-                                    if (imageSize != IntSize.Zero) {
-                                        val xRatio = (offset.x / imageSize.width).coerceIn(0f, 1f)
-                                        val yRatio = (offset.y / imageSize.height).coerceIn(0f, 1f)
-                                        val colorData = extractColorAtRatio(
-                                            context = context,
-                                            uri = Uri.fromFile(imageFile),
-                                            xRatio = xRatio,
-                                            yRatio = yRatio
-                                        )
-                                        colorData?.let { viewModel.onColorPicked(xRatio, yRatio, it) }
-                                    }
-                                }
-                            },
-                        contentScale = ContentScale.Fit
-                    )
-                }
+            )
 
-                // Overlay punti colore
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    uiState.colorPoints.forEach { point ->
-                        val cx = point.xRatio * size.width
-                        val cy = point.yRatio * size.height
-                        val isSelected = point.id == uiState.selectedPoint?.id
-
-                        val colorArgb = try {
-                            android.graphics.Color.parseColor(point.color.hex)
-                        } catch (e: Exception) { android.graphics.Color.GRAY }
-                        val pointColor = Color(colorArgb)
-
-                        // Alone per il punto selezionato
-                        if (isSelected) {
-                            drawCircle(
-                                color = Color.White.copy(alpha = 0.4f),
-                                radius = 22.dp.toPx(),
-                                center = Offset(cx, cy)
-                            )
-                        }
-                        // Bordo bianco
-                        drawCircle(
-                            color = Color.White,
-                            radius = 14.dp.toPx(),
-                            center = Offset(cx, cy),
-                            style = Stroke(width = 2.5.dp.toPx())
-                        )
-                        // Colore estratto
-                        drawCircle(
-                            color = pointColor,
-                            radius = 11.dp.toPx(),
-                            center = Offset(cx, cy)
-                        )
-                    }
-                }
-
-                // Indicatore "Estrazione in corso..."
-                if (uiState.isExtractingPalette) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.4f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                            Text(
-                                "Analisi colori in corso…",
-                                color = Color.White,
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
-                }
+            // Indicatore "Estrazione in corso..." sovrapposto
+            if (uiState.isExtractingPalette) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(0.6f),
+                    contentAlignment = Alignment.Center
+                ) { /* handled inside PaletteCard */ }
             }
 
             // ─── Pannello inferiore (palette + punti colore) ──────────────────
+            // Mappa: categoria → lista punti. "Altro" per i non categorizzati.
+            val groupedPoints = remember(uiState.colorPoints, presetCategories) {
+                val catTagToCategory: Map<String, String> = presetCategories.flatMap { cat ->
+                    cat.tags.map { tag -> tag to cat.name }
+                }.toMap()
+                val grouped = mutableMapOf<String, MutableList<com.example.colorgptstudio.domain.model.ColorPoint>>()
+                uiState.colorPoints.forEach { point ->
+                    val category = point.tags.firstNotNullOfOrNull { catTagToCategory[it] } ?: "Altro"
+                    grouped.getOrPut(category) { mutableListOf() }.add(point)
+                }
+                grouped.toMap()
+            }
+            // Header collassati per categoria
+            var collapsedGroups by remember { mutableStateOf(setOf<String>()) }
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -197,20 +154,36 @@ fun AnalysisScreen(
                     onColorSelected = {}
                 )
 
-                // Lista punti colore
+                // Lista punti colore raggruppati per categoria
                 if (uiState.colorPoints.isNotEmpty()) {
-                    Text(
-                        text = "Punti colore (${uiState.colorPoints.size})",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                    uiState.colorPoints.forEach { point ->
-                        ColorPointRow(
-                            point = point,
-                            isSelected = point.id == uiState.selectedPoint?.id,
-                            onClick = { viewModel.selectPoint(point) },
-                            onDelete = { viewModel.deletePoint(point.id) }
-                        )
+                    groupedPoints.forEach { (category, points) ->
+                        val isCollapsed = category in collapsedGroups
+                        // Header gruppo
+                        TextButton(
+                            onClick = {
+                                collapsedGroups = if (isCollapsed)
+                                    collapsedGroups - category
+                                else
+                                    collapsedGroups + category
+                            },
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = if (isCollapsed) "▶  $category (${points.size})" else "▼  $category",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
+                        if (!isCollapsed) {
+                            points.forEach { point ->
+                                ColorPointRow(
+                                    point = point,
+                                    isSelected = point.id == uiState.selectedPoint?.id,
+                                    onClick = { viewModel.selectPoint(point) },
+                                    onDelete = { viewModel.deletePoint(point.id) }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -218,8 +191,6 @@ fun AnalysisScreen(
     }
 
     // ─── Bottom sheet: editor del punto colore selezionato ────────────────────
-    val availableTags by viewModel.tagRepository.allTags.collectAsState()
-
     if (showPointEditor && uiState.selectedPoint != null) {
         ModalBottomSheet(
             onDismissRequest = {
@@ -233,6 +204,7 @@ fun AnalysisScreen(
             ColorPointEditorSheet(
                 point = uiState.selectedPoint!!,
                 availableTags = availableTags,
+                categoryTags = categoryTagsMap,
                 onSave = { updated ->
                     viewModel.updatePoint(updated)
                     showPointEditor = false
@@ -329,6 +301,7 @@ private fun ColorPointRow(
 private fun ColorPointEditorSheet(
     point: ColorPoint,
     availableTags: List<String>,
+    categoryTags: Map<String, List<String>> = emptyMap(),
     onSave: (ColorPoint) -> Unit,
     onDelete: () -> Unit,
     onDismiss: () -> Unit,
@@ -336,12 +309,17 @@ private fun ColorPointEditorSheet(
 ) {
     var label by remember { mutableStateOf(point.label) }
     var note by remember { mutableStateOf(point.note) }
-    var materialInfo by remember { mutableStateOf(point.materialInfo) }
-    var selectedTags by remember { mutableStateOf(point.tags) }
-
-    val composeColor = remember(point.color.hex) {
-        try { Color(android.graphics.Color.parseColor(point.color.hex)) } catch (e: Exception) { Color.Gray }
+    // materialInfo riutilizzato come codice condizione luce: "shadow" | "mid" | "light"
+    var lightCondition by remember {
+        mutableStateOf(
+            when (point.materialInfo) {
+                "shadow" -> 0f
+                "light"  -> 2f
+                else     -> 1f   // "mid" o vuoto
+            }
+        )
     }
+    var selectedTags by remember { mutableStateOf(point.tags) }
 
     Column(
         modifier = Modifier
@@ -372,23 +350,58 @@ private fun ColorPointEditorSheet(
             value = note,
             onValueChange = { note = it },
             label = { Text("Note") },
-            placeholder = { Text("es. Luce naturale fredda, mattina") },
+            placeholder = { Text("es. visto di mattina, cielo coperto") },
             minLines = 2,
             modifier = Modifier.fillMaxWidth()
         )
-        OutlinedTextField(
-            value = materialInfo,
-            onValueChange = { materialInfo = it },
-            label = { Text("Prodotto / Codice vernice / Fornitore") },
-            placeholder = { Text("es. Sto Ivos Bianco Antico 0102-Y") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
+
+        // ─── Slider condizione luminosa ───────────────────────────────────────
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text = "Condizione luminosa",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Slider(
+                value = lightCondition,
+                onValueChange = { lightCondition = it },
+                valueRange = 0f..2f,
+                steps = 1,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                val items = listOf("🌑 Ombra", "⛅ Medio", "☀️ Luce")
+                items.forEach { label ->
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            // Label attivo
+            val conditionLabel = when (lightCondition.toInt()) {
+                0 -> "Zona in ombra"
+                2 -> "Luce diretta"
+                else -> "Luce diffusa / media"
+            }
+            Text(
+                text = conditionLabel,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold
+                )
+            )
+        }
 
         // ─── Tag con autocompletamento ────────────────────────────────────────
         TagInputField(
             selectedTags = selectedTags,
             availableTags = availableTags,
+            categoryTags = categoryTags,
             onTagsChanged = { selectedTags = it },
             onNewTagAdded = onNewTagAdded,
             label = "Tag cantiere"
@@ -412,11 +425,16 @@ private fun ColorPointEditorSheet(
             }
             Button(
                 onClick = {
+                    val lightStr = when (lightCondition.toInt()) {
+                        0 -> "shadow"
+                        2 -> "light"
+                        else -> "mid"
+                    }
                     onSave(
                         point.copy(
                             label = label.trim(),
                             note = note.trim(),
-                            materialInfo = materialInfo.trim(),
+                            materialInfo = lightStr,
                             tags = selectedTags
                         )
                     )

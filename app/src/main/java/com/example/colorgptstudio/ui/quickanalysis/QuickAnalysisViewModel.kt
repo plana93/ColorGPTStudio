@@ -69,6 +69,18 @@ class QuickAnalysisViewModel : ViewModel() {
         }
     }
 
+    fun updatePointNote(pointId: Long, note: String) {
+        _uiState.update { state ->
+            val updated = state.colorPoints.map {
+                if (it.id == pointId) it.copy(note = note) else it
+            }
+            val updatedSelected = state.selectedPoint?.let {
+                if (it.id == pointId) it.copy(note = note) else it
+            }
+            state.copy(colorPoints = updated, selectedPoint = updatedSelected)
+        }
+    }
+
     fun onColorDetailDismiss() {
         _uiState.update { it.copy(showColorDetail = false, selectedPoint = null) }
     }

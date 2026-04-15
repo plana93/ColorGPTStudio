@@ -25,23 +25,26 @@ import androidx.compose.ui.unit.dp
 /**
  * Componente per la selezione e inserimento di tag.
  *
- * Funzionalità:
- * - Chip eliminabili per i tag selezionati
- * - Input con autocompletamento dai tag disponibili
- * - Aggiunge tag custom che vengono resi disponibili globalmente
+ * Layout (dall'alto verso il basso):
+ * 1. Chip dei tag già selezionati (eliminabili)
+ * 2. Suggerimenti rapidi per MACRO-CATEGORIA (scroll orizzontale, label categoria sopra ogni gruppo)
+ * 3. Campo testo libero per cercare/aggiungere un tag custom
+ * 4. Dropdown dei suggerimenti filtrati dall'input
  *
- * @param selectedTags     Lista dei tag attualmente selezionati
- * @param availableTags    Tutti i tag disponibili (preset + custom)
- * @param onTagsChanged    Callback quando la lista cambia
- * @param onNewTagAdded    Chiamato quando viene aggiunto un tag nuovo (per persistenza)
- * @param label            Etichetta del campo
- * @param modifier         Modifier esterno
+ * @param selectedTags       Tag attualmente selezionati
+ * @param availableTags      Tutti i tag disponibili (flat, preset + custom)
+ * @param categoryTags       Mappa categoria → lista tag preset (per i suggerimenti a categorie)
+ * @param onTagsChanged      Callback quando la lista cambia
+ * @param onNewTagAdded      Chiamato quando viene aggiunto un tag nuovo (per persistenza)
+ * @param label              Etichetta del campo testo libero
+ * @param modifier           Modifier esterno
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TagInputField(
     selectedTags: List<String>,
     availableTags: List<String>,
+    categoryTags: Map<String, List<String>> = emptyMap(),
     onTagsChanged: (List<String>) -> Unit,
     onNewTagAdded: (String) -> Unit = {},
     label: String = "Tag",
@@ -70,7 +73,8 @@ fun TagInputField(
     }
 
     Column(modifier = modifier) {
-        // ─── Chip dei tag selezionati ─────────────────────────────────────────
+
+        // ─── 1. Chip dei tag selezionati ──────────────────────────────────────
         if (selectedTags.isNotEmpty()) {
             FlowRow(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -104,7 +108,53 @@ fun TagInputField(
             }
         }
 
-        // ─── Campo di input ───────────────────────────────────────────────────
+        // ─── 2. Suggerimenti per macro-categoria ──────────────────────────────
+        if (categoryTags.isNotEmpty()) {
+            // Categorie da mostrare: massimo 4 per non appesantire
+            val visibleCategories = categoryTags.entries
+                .filter { (_, tags) -> tags.any { it !in selectedTags } }
+                .take(4)
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                visibleCategories.forEach { (category, tags) ->
+                    val available = tags.filter { it !in selectedTags }
+                    if (available.isEmpty()) return@forEach
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = category,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 2.dp)
+                        )
+                        Row(
+                            modifier = Modifier
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            available.take(8).forEach { tag ->
+                                FilterChip(
+                                    selected = false,
+                                    onClick = { addTag(tag) },
+                                    label = { Text(tag, style = MaterialTheme.typography.labelSmall) },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Outlined.Add,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                    },
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+        }
+
+        // ─── 3. Campo testo libero ─────────────────────────────────────────────
         OutlinedTextField(
             value = inputText,
             onValueChange = {
@@ -134,7 +184,7 @@ fun TagInputField(
             })
         )
 
-        // ─── Suggerimenti ─────────────────────────────────────────────────────
+        // ─── 4. Dropdown suggerimenti filtrati ────────────────────────────────
         AnimatedVisibility(
             visible = showSuggestions && suggestions.isNotEmpty(),
             enter = expandVertically(),
@@ -171,35 +221,6 @@ fun TagInputField(
                         }
                     }
                 }
-            }
-        }
-
-        // ─── Chip preset scorrevoli (categorie) ───────────────────────────────
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Suggeriti:",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 4.dp)
-        )
-        val quickTags = availableTags
-            .filter { it !in selectedTags }
-            .take(12)
-
-        Row(
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            quickTags.forEach { tag ->
-                FilterChip(
-                    selected = false,
-                    onClick = { addTag(tag) },
-                    label = { Text(tag, style = MaterialTheme.typography.labelSmall) },
-                    leadingIcon = {
-                        Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(14.dp))
-                    },
-                    shape = RoundedCornerShape(8.dp)
-                )
             }
         }
     }

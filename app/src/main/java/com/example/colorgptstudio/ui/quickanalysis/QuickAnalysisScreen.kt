@@ -5,9 +5,7 @@ import android.net.Uri
 import com.example.colorgptstudio.util.extractColorAtRatio
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,22 +18,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import com.example.colorgptstudio.domain.model.ColorData
 import com.example.colorgptstudio.domain.model.ColorPoint
 import com.example.colorgptstudio.ui.components.ColorDetailSheet
+import com.example.colorgptstudio.ui.components.InteractiveImageCanvas
 import com.example.colorgptstudio.ui.components.copyPaletteToClipboard
 import org.koin.androidx.compose.koinViewModel
 
@@ -102,9 +93,9 @@ fun QuickAnalysisScreen(
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
-                // Canvas interattivo (55% schermo)
+                // Canvas interattivo (55% schermo) — lente al drag, pinch-to-zoom
                 InteractiveImageCanvas(
-                    imageUri = uiState.imageUri!!,
+                    imageSource = uiState.imageUri,
                     colorPoints = uiState.colorPoints,
                     selectedPointId = uiState.selectedPoint?.id,
                     onTap = { xRatio, yRatio ->
@@ -114,9 +105,7 @@ fun QuickAnalysisScreen(
                             xRatio = xRatio,
                             yRatio = yRatio
                         )
-                        if (colorData != null) {
-                            viewModel.onColorPicked(xRatio, yRatio, colorData)
-                        }
+                        if (colorData != null) viewModel.onColorPicked(xRatio, yRatio, colorData)
                     },
                     modifier = Modifier
                         .fillMaxWidth()
@@ -153,17 +142,45 @@ fun QuickAnalysisScreen(
     // BottomSheet dettaglio colore selezionato
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     if (uiState.selectedPoint != null) {
+        val point = uiState.selectedPoint!!
+        var noteText by remember(point.id) { mutableStateOf(point.note) }
+
         ModalBottomSheet(
             onDismissRequest = { viewModel.deselectPoint() },
             sheetState = sheetState,
             containerColor = MaterialTheme.colorScheme.surface
         ) {
-            ColorDetailSheet(
-                color = uiState.selectedPoint!!.color,
-                label = uiState.selectedPoint!!.label,
-                note = uiState.selectedPoint!!.note,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).padding(bottom = 24.dp)
-            )
+            Column(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(bottom = 28.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                ColorDetailSheet(
+                    color = point.color,
+                    label = point.label,
+                    note = noteText
+                )
+                HorizontalDivider()
+                OutlinedTextField(
+                    value = noteText,
+                    onValueChange = { noteText = it },
+                    label = { Text("Nota rapida") },
+                    placeholder = { Text("es. parete nord, luce fredda") },
+                    singleLine = false,
+                    minLines = 2,
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        if (noteText != point.note) {
+                            IconButton(onClick = {
+                                viewModel.updatePointNote(point.id, noteText)
+                            }) {
+                                Icon(Icons.Outlined.Check, contentDescription = "Salva nota")
+                            }
+                        }
+                    }
+                )
+            }
         }
     }
 }
@@ -274,54 +291,6 @@ private fun ImageSourceSelector(
                 Icon(Icons.Outlined.CameraAlt, contentDescription = null)
                 Spacer(Modifier.width(8.dp))
                 Text("Fotocamera")
-            }
-        }
-    }
-}
-
-@Composable
-private fun InteractiveImageCanvas(
-    imageUri: Uri,
-    colorPoints: List<ColorPoint>,
-    selectedPointId: Long?,
-    onTap: (xRatio: Float, yRatio: Float) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    var imageSize by remember { mutableStateOf(IntSize.Zero) }
-
-    Box(modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant)) {
-        AsyncImage(
-            model = imageUri,
-            contentDescription = "Immagine da analizzare",
-            modifier = Modifier
-                .fillMaxSize()
-                .onGloballyPositioned { imageSize = it.size }
-                .pointerInput(Unit) {
-                    detectTapGestures { offset ->
-                        if (imageSize != IntSize.Zero) {
-                            onTap(
-                                (offset.x / imageSize.width).coerceIn(0f, 1f),
-                                (offset.y / imageSize.height).coerceIn(0f, 1f)
-                            )
-                        }
-                    }
-                },
-            contentScale = ContentScale.Fit
-        )
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            colorPoints.forEach { point ->
-                val cx = point.xRatio * size.width
-                val cy = point.yRatio * size.height
-                val isSelected = point.id == selectedPointId
-                val pointColor = try {
-                    Color(android.graphics.Color.parseColor(point.color.hex))
-                } catch (e: Exception) { Color.Gray }
-
-                if (isSelected) {
-                    drawCircle(color = Color.White.copy(alpha = 0.35f), radius = 22.dp.toPx(), center = Offset(cx, cy))
-                }
-                drawCircle(color = Color.White, radius = 14.dp.toPx(), center = Offset(cx, cy), style = Stroke(2.5.dp.toPx()))
-                drawCircle(color = pointColor, radius = 11.dp.toPx(), center = Offset(cx, cy))
             }
         }
     }

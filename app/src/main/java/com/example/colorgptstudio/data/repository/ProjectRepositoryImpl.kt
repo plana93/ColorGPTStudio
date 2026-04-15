@@ -95,6 +95,12 @@ class ProjectRepositoryImpl(
         projectDao.update(project.toEntity())
     }
 
+    override suspend fun renameProject(id: Long, newName: String) {
+        val entity = projectDao.getById(id) ?: return
+        projectDao.update(entity.copy(name = newName.trim(), updatedAt = System.currentTimeMillis()))
+        Timber.d("ProjectRepository: Progetto rinominato → id=$id, name=$newName")
+    }
+
     override suspend fun deleteProject(id: Long) {
         val project = projectDao.getById(id)
         project?.folderPath?.let { fileManager.deleteProjectFolder(it) }

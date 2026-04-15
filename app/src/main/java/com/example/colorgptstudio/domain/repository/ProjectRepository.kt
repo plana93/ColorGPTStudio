@@ -24,6 +24,9 @@ interface ProjectRepository {
     /** Aggiorna i metadati di un progetto esistente */
     suspend fun updateProject(project: Project)
 
+    /** Rinomina un progetto */
+    suspend fun renameProject(id: Long, newName: String)
+
     /** Elimina un progetto (elimina anche la cartella e tutti i file dal filesystem) */
     suspend fun deleteProject(id: Long)
 
