@@ -139,4 +139,44 @@ class AnalysisViewModel(
     fun clearError() {
         _uiState.update { it.copy(error = null) }
     }
+
+    /**
+     * Builds a ready-to-paste prompt for any local or cloud LLM.
+     * The prompt includes all color points with their full color vocabulary
+     * (HEX, RAL, NCS, RGB, label, note, tags) and asks for professional advice.
+     */
+    fun generateLlmPrompt(): String {
+        val points = _uiState.value.colorPoints
+        if (points.isEmpty()) return ""
+
+        val colorLines = points.mapIndexed { index, point ->
+            buildString {
+                val name = point.label.ifBlank { "Color ${index + 1}" }
+                appendLine("${index + 1}. $name")
+                appendLine("   HEX: #${point.color.hexClean}  |  RGB: ${point.color.r}, ${point.color.g}, ${point.color.b}")
+                appendLine("   RAL: ${point.color.ralString}  |  NCS: ${point.color.ncsApprox}")
+                appendLine("   CMYK: ${point.color.cmykString}  |  HSL: ${point.color.hslString}")
+                if (point.note.isNotBlank()) appendLine("   Note: ${point.note}")
+                if (point.materialInfo.isNotBlank()) appendLine("   Material / product code: ${point.materialInfo}")
+                if (point.tags.isNotEmpty()) appendLine("   Tags: ${point.tags.joinToString(", ")}")
+            }.trimEnd()
+        }.joinToString("\n\n")
+
+        return """
+You are a professional color consultant specializing in interior finishing, woodworking and architectural painting.
+
+I have sampled the following colors from a project image:
+
+$colorLines
+
+Please provide:
+1. A brief description of the overall palette mood and style
+2. Color harmony analysis (complementary, analogous, contrast, etc.)
+3. Suggested compatible colors or RAL/NCS codes that would pair well
+4. Recommended paint finish types and application notes for these surfaces
+5. Any potential issues or improvements from a professional standpoint
+
+Keep the response concise and practical — this is for an on-site craftsman.
+        """.trimIndent()
+    }
 }

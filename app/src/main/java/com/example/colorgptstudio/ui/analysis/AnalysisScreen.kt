@@ -17,7 +17,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,6 +48,7 @@ fun AnalysisScreen(
     val context = LocalContext.current
     val bottomSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     var showPointEditor by remember { mutableStateOf(false) }
+    var showLlmSheet by remember { mutableStateOf(false) }
 
     // Dati tag (condivisi tra la lista punti e il bottom sheet)
     val availableTags by viewModel.tagRepository.allTags.collectAsState()
@@ -68,6 +72,12 @@ fun AnalysisScreen(
                     }
                 },
                 actions = {
+                    // Bottone "Ask AI" — genera prompt LLM dai punti colore
+                    if (uiState.colorPoints.isNotEmpty()) {
+                        IconButton(onClick = { showLlmSheet = true }) {
+                            Icon(Icons.Outlined.AutoFixHigh, contentDescription = "Ask AI")
+                        }
+                    }
                     // Bottone estrai palette
                     IconButton(
                         onClick = { viewModel.extractPalette(context) },
@@ -182,6 +192,14 @@ fun AnalysisScreen(
                 }
             }
         }
+    }
+
+    // ─── Bottom sheet: prompt LLM ─────────────────────────────────────────────
+    if (showLlmSheet) {
+        LlmPromptSheet(
+            prompt = viewModel.generateLlmPrompt(),
+            onDismiss = { showLlmSheet = false }
+        )
     }
 
     // ─── Bottom sheet: editor del punto colore selezionato ────────────────────
@@ -436,6 +454,144 @@ private fun ColorPointEditorSheet(
                 modifier = Modifier.weight(1f)
             ) {
                 Text("Salva")
+            }
+        }
+    }
+}
+
+// ─── LLM Prompt Sheet ─────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LlmPromptSheet(
+    prompt: String,
+    onDismiss: () -> Unit
+) {
+    val clipboardManager = LocalClipboardManager.current
+    val context = LocalContext.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var copied by remember { mutableStateOf(false) }
+
+    LaunchedEffect(copied) {
+        if (copied) {
+            kotlinx.coroutines.delay(2000)
+            copied = false
+        }
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // ── Header ──────────────────────────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "Ask AI",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "Copy this prompt into any LLM",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Icon(
+                    Icons.Outlined.AutoFixHigh,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            HorizontalDivider()
+
+            // ── Prompt text (scrollabile) ────────────────────────────────
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 320.dp)
+                    .background(
+                        MaterialTheme.colorScheme.surfaceVariant,
+                        RoundedCornerShape(12.dp)
+                    )
+            ) {
+                Text(
+                    text = prompt,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontFamily = FontFamily.Monospace,
+                        lineHeight = 18.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .verticalScroll(rememberScrollState())
+                        .padding(14.dp)
+                )
+            }
+
+            // ── Azioni ───────────────────────────────────────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Copy to clipboard
+                Button(
+                    onClick = {
+                        clipboardManager.setText(AnnotatedString(prompt))
+                        copied = true
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (copied)
+                            MaterialTheme.colorScheme.secondary
+                        else
+                            MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Icon(
+                        if (copied) Icons.Outlined.Check else Icons.Outlined.ContentCopy,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (copied) "Copied!" else "Copy prompt")
+                }
+
+                // Share / Open in another app
+                OutlinedButton(
+                    onClick = {
+                        val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(android.content.Intent.EXTRA_TEXT, prompt)
+                        }
+                        context.startActivity(
+                            android.content.Intent.createChooser(intent, "Open in…")
+                        )
+                    },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        Icons.Outlined.Share,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text("Share")
+                }
             }
         }
     }
