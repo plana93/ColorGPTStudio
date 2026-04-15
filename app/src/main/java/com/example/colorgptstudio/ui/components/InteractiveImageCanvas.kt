@@ -8,12 +8,12 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -24,10 +24,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.clipRect
-import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.input.pointer.PointerEventPass
-import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.ContentScale
@@ -36,7 +33,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -95,14 +91,39 @@ fun InteractiveImageCanvas(
         }
     }
 
-    /** Converte offset assoluto sul canvas in (xRatio, yRatio) tenendo conto di zoom/pan */
+    // Ogni volta che cambia bitmap o dimensioni del Box, ricalcola l'area renderizzata (ContentScale.Fit)
+    // Usato solo per il posizionamento visivo dei pallini overlay
+    var renderedImageSize by remember { mutableStateOf(IntSize.Zero) }
+    var renderedImageOffset by remember { mutableStateOf(Offset.Zero) }
+
+    LaunchedEffect(cachedBitmap, imageSize) {
+        val bmp = cachedBitmap ?: return@LaunchedEffect
+        if (imageSize == IntSize.Zero) return@LaunchedEffect
+        val bmpAspect = bmp.width.toFloat() / bmp.height.toFloat()
+        val boxAspect = imageSize.width.toFloat() / imageSize.height.toFloat()
+        val (rw, rh) = if (bmpAspect > boxAspect) {
+            imageSize.width to (imageSize.width / bmpAspect).toInt()
+        } else {
+            (imageSize.height * bmpAspect).toInt() to imageSize.height
+        }
+        renderedImageSize = IntSize(rw, rh)
+        renderedImageOffset = Offset(
+            (imageSize.width - rw) / 2f,
+            (imageSize.height - rh) / 2f
+        )
+    }
+
+    /** Converte offset assoluto sul canvas in (xRatio, yRatio).
+     *  Il tap è già in coordinate del Box (pre-graphicsLayer), quindi
+     *  invertiamo solo zoom/pan. NON sottraiamo renderedImageOffset perché
+     *  ContentScale.Fit centra l'immagine tramite il layout Compose, non
+     *  tramite una trasformazione manuale che dobbiamo invertire noi. */
     fun offsetToRatio(offset: Offset): Pair<Float, Float> {
         if (imageSize == IntSize.Zero) return 0f to 0f
-        // Inverti la trasformazione zoom/pan per trovare il punto immagine
-        val imageX = (offset.x - pan.x) / scale
-        val imageY = (offset.y - pan.y) / scale
-        return (imageX / imageSize.width).coerceIn(0f, 1f) to
-               (imageY / imageSize.height).coerceIn(0f, 1f)
+        val localX = (offset.x - pan.x) / scale
+        val localY = (offset.y - pan.y) / scale
+        return (localX / imageSize.width).coerceIn(0f, 1f) to
+               (localY / imageSize.height).coerceIn(0f, 1f)
     }
 
     /** Estrae il colore dal bitmap al punto specificato */
@@ -130,16 +151,18 @@ fun InteractiveImageCanvas(
                     translationY = pan.y
                 )
                 .pointerInput(Unit) {
+                    // ── TAP: usa detectTapGestures che filtra correttamente tap vs drag ──
+                    detectTapGestures { offset ->
+                        val (xR, yR) = offsetToRatio(offset)
+                        onTap(xR, yR)
+                    }
+                }
+                .pointerInput(Unit) {
+                    // ── DRAG (lente) + PINCH (zoom) ────────────────────────────────────
                     awaitEachGesture {
-                        // ── Attendi il primo dito ────────────────────────────
-                        val down = awaitFirstDown(requireUnconsumed = false)
-                        var lastPointerCount = 1
-                        var accZoom = 1f
+                        awaitFirstDown(requireUnconsumed = false)
                         var dragAccum = Offset.Zero
                         var hasMoved = false
-
-                        // Posizione iniziale per decidere tap vs drag
-                        val startPos = down.position
 
                         do {
                             val event = awaitPointerEvent(PointerEventPass.Main)
@@ -147,52 +170,30 @@ fun InteractiveImageCanvas(
                             val pointerCount = pointers.size
 
                             if (pointerCount == 1) {
-                                // ── Single finger: drag per lente ────────────
                                 val change = pointers[0]
                                 val delta = change.positionChange()
                                 dragAccum += delta
-
-                                if (!hasMoved && abs(dragAccum.x) + abs(dragAccum.y) > 8f) {
+                                if (!hasMoved && abs(dragAccum.x) + abs(dragAccum.y) > 12f) {
                                     hasMoved = true
                                 }
-
                                 if (hasMoved) {
                                     isDragging = true
                                     dragPosition = change.position
-                                    val (xR, yR) = offsetToRatio(
-                                        // La posizione del dito è in coordinate del Box,
-                                        // ma imageSize è già del Box per ContentScale.Fit
-                                        change.position
-                                    )
+                                    val (xR, yR) = offsetToRatio(change.position)
                                     magnifierColor = extractColorAt(xR, yR)
                                     change.consume()
                                 }
                             } else if (pointerCount >= 2) {
-                                // ── Pinch: zoom + pan ────────────────────────
                                 isDragging = false
                                 hasMoved = true
-
                                 val zoomFactor = event.calculateZoom()
                                 val panDelta = event.calculatePan()
-
                                 scale = (scale * zoomFactor).coerceIn(0.5f, 8f)
                                 pan += panDelta
                                 pointers.forEach { it.consume() }
                             }
-
-                            lastPointerCount = pointerCount
                         } while (pointers.any { it.pressed })
 
-                        // ── Rilascio ─────────────────────────────────────────
-                        if (isDragging) {
-                            // Al drag-release: campiona il colore finale
-                            val (xR, yR) = offsetToRatio(dragPosition)
-                            onTap(xR, yR)
-                        } else if (!hasMoved && imageSize != IntSize.Zero) {
-                            // Tap puro (nessun movimento)
-                            val (xR, yR) = offsetToRatio(startPos)
-                            onTap(xR, yR)
-                        }
                         isDragging = false
                         magnifierColor = null
                     }
@@ -211,9 +212,13 @@ fun InteractiveImageCanvas(
                     translationY = pan.y
                 )
         ) {
+            val (rSize, rOffset) = if (renderedImageSize != IntSize.Zero)
+                renderedImageSize to renderedImageOffset
+            else
+                imageSize to Offset.Zero
             colorPoints.forEach { point ->
-                val cx = point.xRatio * size.width
-                val cy = point.yRatio * size.height
+                val cx = rOffset.x + point.xRatio * rSize.width
+                val cy = rOffset.y + point.yRatio * rSize.height
                 val isSelected = point.id == selectedPointId
                 val ptColor = try {
                     Color(android.graphics.Color.parseColor(point.color.hex))

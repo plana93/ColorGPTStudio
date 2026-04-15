@@ -1,9 +1,7 @@
 package com.example.colorgptstudio.ui.analysis
 
-import android.net.Uri
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -19,20 +17,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.example.colorgptstudio.domain.model.ColorPoint
 import com.example.colorgptstudio.ui.components.ColorDetailSheet
 import com.example.colorgptstudio.ui.components.InteractiveImageCanvas
 import com.example.colorgptstudio.ui.components.PaletteCard
 import com.example.colorgptstudio.ui.components.TagInputField
 import com.example.colorgptstudio.ui.components.copyColorToClipboard
-import com.example.colorgptstudio.util.extractColorAtRatio
+import com.example.colorgptstudio.util.extractColorAtRatioFromFile
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -96,13 +91,12 @@ fun AnalysisScreen(
             // ─── Canvas interattivo (60% schermo) — lente al drag, pinch-to-zoom ─
             val imageFile = java.io.File(uiState.imageLocalPath)
             InteractiveImageCanvas(
-                imageSource = if (imageFile.exists()) imageFile else null,
+                imageSource = if (uiState.imageLocalPath.isNotBlank()) imageFile else null,
                 colorPoints = uiState.colorPoints,
                 selectedPointId = uiState.selectedPoint?.id,
                 onTap = { xRatio, yRatio ->
-                    val colorData = extractColorAtRatio(
-                        context = context,
-                        uri = Uri.fromFile(imageFile),
+                    val colorData = extractColorAtRatioFromFile(
+                        file = imageFile,
                         xRatio = xRatio,
                         yRatio = yRatio
                     )

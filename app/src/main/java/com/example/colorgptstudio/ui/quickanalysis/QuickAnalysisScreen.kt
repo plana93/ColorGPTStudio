@@ -1,7 +1,10 @@
 package com.example.colorgptstudio.ui.quickanalysis
 
-import android.graphics.Bitmap
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import com.example.colorgptstudio.util.extractColorAtRatio
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -29,6 +32,7 @@ import com.example.colorgptstudio.ui.components.ColorDetailSheet
 import com.example.colorgptstudio.ui.components.InteractiveImageCanvas
 import com.example.colorgptstudio.ui.components.copyPaletteToClipboard
 import org.koin.androidx.compose.koinViewModel
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,9 +47,48 @@ fun QuickAnalysisScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? -> uri?.let { viewModel.onImageSelected(it) } }
 
+    // photoFile viene tenuto in remember per sopravvivere alla recomposition
+    val photoFile = remember {
+        File(context.filesDir, "camera").also { it.mkdirs() }
+            .let { File(it, "quick_photo.jpg") }
+    }
+
     val cameraLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicturePreview()
-    ) { _: Bitmap? -> /* TODO: salva bitmap temporaneo */ }
+        contract = ActivityResultContracts.TakePicture()
+    ) { success: Boolean ->
+        if (success && photoFile.exists() && photoFile.length() > 0) {
+            // Usa Uri.fromFile per leggere direttamente dal filesystem interno
+            viewModel.onImageSelected(Uri.fromFile(photoFile))
+        }
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted: Boolean ->
+        if (granted) {
+            val providerUri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                photoFile
+            )
+            cameraLauncher.launch(providerUri)
+        }
+    }
+
+    fun launchCamera() {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            val providerUri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                photoFile
+            )
+            cameraLauncher.launch(providerUri)
+        } else {
+            permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -89,7 +132,7 @@ fun QuickAnalysisScreen(
             if (uiState.imageUri == null) {
                 ImageSourceSelector(
                     onGalleryClick = { galleryLauncher.launch("image/*") },
-                    onCameraClick = { cameraLauncher.launch(null) },
+                    onCameraClick = { launchCamera() },
                     modifier = Modifier.fillMaxSize()
                 )
             } else {
