@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "description": "Tag predefiniti per falegnami e verniciatori. Personalizzabili dall'utente.",
+  "categories": [
+    {
+      "name": "Supporto",
+      "tags": ["legno massello", "MDF", "truciolato", "compensato", "impiallacciato", "laminato", "alluminio", "ferro", "muratura", "gesso", "vetro"]
+    },
+    {
+      "name": "Finitura",
+      "tags": ["opaco", "satinato", "lucido", "semilucido", "spazzolato", "invecchiato", "decapato", "wengé", "rovere", "noce", "ciliegio", "faggio", "pino"]
+    },
+    {
+      "name": "Applicazione vernice",
+      "tags": ["laccato", "verniciato", "mordenzato", "impregnato", "cerato", "oliato", "tinteggiato", "primer", "fondo", "smalto", "idropittura"]
+    },
+    {
+      "name": "Ambiente",
+      "tags": ["cucina", "bagno", "soggiorno", "camera", "ufficio", "esterno", "mansarda", "cantina", "corridoio", "scala", "facciata"]
+    },
+    {
+      "name": "Condizioni luce",
+      "tags": ["luce naturale", "luce artificiale", "controluce", "mattina", "pomeriggio", "sera", "nuvolo", "soleggiato", "neon", "LED caldo", "LED freddo"]
+    },
+    {
+      "name": "Elemento",
+      "tags": ["porta", "finestra", "persiana", "tapparella", "armadio", "cassetto", "pensile", "top cucina", "pavimento", "parquet", "battiscopa", "cornice", "soffitto", "parete", "colonna", "scala", "ringhiera", "boiserie"]
+    },
+    {
+      "name": "Stato",
+      "tags": ["campione approvato", "da verificare", "colore fornitore", "colore cliente", "variazione luce", "tinta personalizzata", "colore standard"]
+    }
+  ]
+}
