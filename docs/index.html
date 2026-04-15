@@ -208,6 +208,24 @@
       font-size: 0.85rem; color: var(--muted); line-height: 1.55;
     }
 
+    /* ── SIDELOAD BANNER ── */
+    .sideload-banner {
+      max-width: 680px;
+      margin: 0 auto 80px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px 28px;
+      display: flex;
+      gap: 16px;
+      align-items: flex-start;
+    }
+    .sideload-banner .icon { font-size: 1.3rem; flex-shrink: 0; padding-top: 2px; }
+    .sideload-banner h4 { font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; }
+    .sideload-banner p  { font-size: 0.78rem; color: var(--muted); line-height: 1.6; }
+    .sideload-banner a  { color: var(--accent); text-decoration: none; }
+    .sideload-banner a:hover { text-decoration: underline; }
+
     /* ── TUTORIAL ── */
     .tutorial-steps {
       margin-top: 52px;
@@ -355,9 +373,14 @@
     </p>
 
     <div class="hero-actions">
-      <a href="https://github.com/plana93/ColorGPTStudio" target="_blank" class="btn-primary">View on GitHub</a>
+      <a href="https://github.com/plana93/ColorGPTStudio/releases/latest/download/ColorGPTStudio-v1.0.0.apk" class="btn-primary">⬇ Download APK</a>
+      <a href="https://github.com/plana93/ColorGPTStudio" target="_blank" class="btn-ghost">View on GitHub</a>
       <a href="#how-it-works" class="btn-ghost">How it works ↓</a>
     </div>
+
+    <p style="margin-top:18px;font-size:0.75rem;color:var(--muted);">
+      Android 8.0+ &nbsp;·&nbsp; ~6 MB &nbsp;·&nbsp; Requires <em>Install unknown apps</em> enabled
+    </p>
   </section>
 
   <!-- SCREENS -->
@@ -378,7 +401,23 @@
 
   <hr class="divider" />
 
-  <!-- FEATURES -->
+  <!-- SIDELOAD INSTRUCTIONS -->
+  <div class="sideload-banner">
+    <div class="icon">ℹ️</div>
+    <div>
+      <h4>How to install the APK</h4>
+      <p>
+        ColorGPT Studio is not on the Play Store yet — it installs via sideload.<br/>
+        On your Android device: <strong>Settings → Apps → Special app access → Install unknown apps</strong>
+        → enable for your browser or file manager. Then open the downloaded APK and tap Install.
+        <br/><br/>
+        Requires <strong>Android 8.0+</strong> (API 26). No internet permission — nothing leaves your device.
+        &nbsp;<a href="https://github.com/plana93/ColorGPTStudio#run-it" target="_blank">More info →</a>
+      </p>
+    </div>
+  </div>
+
+  <hr class="divider" />
   <section class="section" id="features">
     <div class="section-label">What it does</div>
     <h2>Everything a pro needs.<br/><em>Nothing you don't.</em></h2>
@@ -550,7 +589,8 @@
     <h2>Clone it. Build it. Ship it.</h2>
     <p>Open source. MIT licensed. No setup wizard required.</p>
     <div class="hero-actions">
-      <a href="https://github.com/plana93/ColorGPTStudio" target="_blank" class="btn-primary">View on GitHub</a>
+      <a href="https://github.com/plana93/ColorGPTStudio/releases/latest/download/ColorGPTStudio-v1.0.0.apk" class="btn-primary">⬇ Download APK</a>
+      <a href="https://github.com/plana93/ColorGPTStudio" target="_blank" class="btn-ghost">View on GitHub</a>
     </div>
     <pre style="margin-top:32px;display:inline-block;text-align:left;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px 24px;font-size:0.8rem;color:var(--muted);line-height:1.8;"><code>git clone https://github.com/plana93/ColorGPTStudio.git
 cd ColorGPTStudio
